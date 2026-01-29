@@ -1,0 +1,23 @@
+# Ігноруємо системні файли
+.DS_Store
+Thumbs.db
+.idea/
+
+# Ігноруємо секрети (паролі, ключі до бази даних)
+.env
+.env.local
+
+# Frontend (Next.js)
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+
+# Backend (Go)
+backend/*.exe
+backend/*.bin
+backend/vendor/
+backend/tmp/
+
+# Docker
+.docker/
