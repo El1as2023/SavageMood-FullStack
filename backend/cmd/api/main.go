@@ -1,0 +1,43 @@
+package main
+
+import (
+	"log"
+
+	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/savagemood/backend/internal/config"
+	"github.com/savagemood/backend/internal/database"
+)
+
+func main() {
+	var cfg *config.Config
+	var err error
+	cfg, err = config.Load()
+	if err != nil {
+		log.Fatal("Error loading config: ", err)
+	}
+	var pool *pgxpool.Pool
+	pool, err = database.Connect(cfg.DatabaseURL)
+	if err != nil {
+		log.Fatal("Error connecting to database: ", err)
+	}
+	defer pool.Close()
+
+	var router *gin.Engine = gin.Default()
+	
+	router.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"http://localhost:3000"}, // Твій Next.js
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		AllowCredentials: true,
+	}))
+
+	router.GET("/", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"message": "Welocme to SavageMOOD",
+		})
+	})
+
+	router.Run(":" + cfg.Port)
+}

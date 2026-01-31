@@ -18,6 +18,8 @@ backend/*.exe
 backend/*.bin
 backend/vendor/
 backend/tmp/
+backend/.env
+backend/scripts/migrate.ps1
 
 # Docker
 .docker/

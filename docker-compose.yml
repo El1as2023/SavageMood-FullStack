@@ -1,0 +1,17 @@
+
+services:
+  db:
+    image: postgres:18-alpine # Використовуємо легку версію Alpine
+    container_name: savagemood_container
+    restart: always # База автоматично підніметься після перезавантаження ПК
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "5432:5432" # Прокидаємо порт: [твій комп]:[всередині докера]
+    volumes:
+      - postgres_data:/var/lib/postgresql/data # Зберігаємо дані тут
+
+volumes:
+  postgres_data: # Це «флешка», на якій житимуть твої турніри та гравці
