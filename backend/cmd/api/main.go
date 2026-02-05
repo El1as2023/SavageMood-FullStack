@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/savagemood/backend/internal/config"
 	"github.com/savagemood/backend/internal/database"
+	"github.com/savagemood/backend/internal/handlers"
 )
 
 func main() {
@@ -25,7 +26,7 @@ func main() {
 	defer pool.Close()
 
 	var router *gin.Engine = gin.Default()
-	
+
 	router.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"http://localhost:3000"}, // Твій Next.js
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
@@ -38,6 +39,8 @@ func main() {
 			"message": "Welocme to SavageMOOD",
 		})
 	})
+	router.POST("/auth/register", handlers.Register(pool))
+	router.POST("/auth/login", handlers.Login(pool))
 
 	router.Run(":" + cfg.Port)
 }
