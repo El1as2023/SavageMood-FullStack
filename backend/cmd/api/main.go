@@ -9,6 +9,7 @@ import (
 	"github.com/savagemood/backend/internal/config"
 	"github.com/savagemood/backend/internal/database"
 	"github.com/savagemood/backend/internal/handlers"
+	"github.com/savagemood/backend/internal/middleware"
 )
 
 func main() {
@@ -41,6 +42,12 @@ func main() {
 	})
 	router.POST("/auth/register", handlers.Register(pool))
 	router.POST("/auth/login", handlers.Login(pool, cfg))
+
+	protected := router.Group("/api")
+	protected.Use(middleware.AuthMiddleware(cfg))
+	{
+		protected.GET("/profile", handlers.GetMe(pool))
+	}
 
 	router.Run(":" + cfg.Port)
 }

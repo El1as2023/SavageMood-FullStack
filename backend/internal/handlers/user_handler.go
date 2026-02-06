@@ -122,3 +122,26 @@ func Login(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
 		c.JSON(http.StatusOK, response)
 	}
 }
+
+func GetMe(pool *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userId, exists := c.Get("userId")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+			return
+		}
+		user, err := repository.GetUserById(pool, userId.(string))
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Not found"})
+			return
+		}
+		response := UserResponse{
+			ID:       user.ID,
+			Username: user.Username,
+			Email:    user.Email,
+			Role:     user.Role,
+		}
+		c.JSON(http.StatusOK, response)
+	}
+
+}
