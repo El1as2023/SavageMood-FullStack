@@ -40,7 +40,7 @@ func main() {
 		})
 	})
 	router.POST("/auth/register", handlers.Register(pool))
-	router.POST("/auth/login", handlers.Login(pool))
+	router.POST("/auth/login", handlers.Login(pool, cfg))
 
 	router.Run(":" + cfg.Port)
 }

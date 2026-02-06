@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/savagemood/backend/internal/config"
 	"github.com/savagemood/backend/internal/models"
 	"github.com/savagemood/backend/internal/repository"
 	"golang.org/x/crypto/bcrypt"
@@ -24,6 +25,17 @@ type RegisterRequest struct {
 type LoginRequest struct {
 	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required,min=8"`
+}
+type UserResponse struct {
+	ID       string `json:"id"`
+	Username string `json:"username"`
+	Email    string `json:"email"`
+	Role     string `json:"role"`
+}
+
+type LoginResponse struct {
+	Token string       `json:"token"`
+	User  UserResponse `json:"user"`
 }
 
 func Register(pool *pgxpool.Pool) gin.HandlerFunc {
@@ -69,7 +81,7 @@ func Register(pool *pgxpool.Pool) gin.HandlerFunc {
 	}
 }
 
-func Login(pool *pgxpool.Pool) gin.HandlerFunc {
+func Login(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var loginRequest LoginRequest
 		if err := c.ShouldBindJSON(&loginRequest); err != nil {
@@ -93,19 +105,20 @@ func Login(pool *pgxpool.Pool) gin.HandlerFunc {
 			"iat":  time.Now().Unix(),
 		}
 		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-		secretKey := []byte("super-secret-key-savagemood")
-		tokenString, err := token.SignedString(secretKey)
+		tokenString, err := token.SignedString([]byte(cfg.JWTSecret))
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to sign token"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{
-			"token": tokenString,
-			"user": gin.H{
-				"id":       user.ID,
-				"username": user.Username,
-				"role":     user.Role,
+		response := LoginResponse{
+			Token: tokenString,
+			User: UserResponse{
+				ID:       user.ID,
+				Username: user.Username,
+				Email:    user.Email,
+				Role:     user.Role,
 			},
-		})
+		}
+		c.JSON(http.StatusOK, response)
 	}
 }
