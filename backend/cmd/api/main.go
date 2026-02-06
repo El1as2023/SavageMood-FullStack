@@ -47,6 +47,12 @@ func main() {
 	protected.Use(middleware.AuthMiddleware(cfg))
 	{
 		protected.GET("/profile", handlers.GetMe(pool))
+		protected.GET("tournaments", handlers.GetAllTournamentsHandler(pool))
+
+		//ADMIN
+		admin := protected.Group("/admin")
+		admin.Use(middleware.AdminMiddleware())
+		admin.POST("/create-tournament", handlers.CreateTournamentHandler(pool))
 	}
 
 	router.Run(":" + cfg.Port)
