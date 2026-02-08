@@ -48,11 +48,15 @@ func main() {
 	{
 		protected.GET("/profile", handlers.GetMe(pool))
 		protected.GET("tournaments", handlers.GetAllTournamentsHandler(pool))
+		protected.GET("/tournaments/:id", handlers.GetTournamentHandler(pool))
 
 		//ADMIN
 		admin := protected.Group("/admin")
 		admin.Use(middleware.AdminMiddleware())
 		admin.POST("/create-tournament", handlers.CreateTournamentHandler(pool))
+		admin.PATCH("/tournaments/:id", handlers.UpdateTournamentHandler(pool))
+		admin.PATCH("/tournaments/:id/status", handlers.UpdateTournamentStatusHandler(pool))
+		admin.DELETE("/tournaments/:id", handlers.DeleteTournamentHandler(pool))
 	}
 
 	router.Run(":" + cfg.Port)

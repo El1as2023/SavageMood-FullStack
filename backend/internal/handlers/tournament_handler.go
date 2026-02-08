@@ -2,9 +2,11 @@ package handlers
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/savagemood/backend/internal/models"
 	"github.com/savagemood/backend/internal/repository"
@@ -17,6 +19,18 @@ type TournamentRequest struct {
 	MaxTeams    int       `json:"maxTeamSize" binding:"required"`
 	PrizePool   string    `json:"prizePoolSize" binding:"required"`
 	BannerURL   string    `json:"bannerUrl" binding:"required"`
+}
+
+type UpdateTournamentRequest struct {
+	Title       *string    `json:"title"`
+	Description *string    `json:"description"`
+	StartDate   *time.Time `json:"start"`
+	MaxTeams    *int       `json:"maxTeamSize"`
+	PrizePool   *string    `json:"prizePoolSize"`
+	BannerURL   *string    `json:"bannerUrl" `
+}
+type ChangeStatusRequest struct {
+	Status string `json:"status" binding:"required,oneof=upcoming ongoing finished"`
 }
 
 func CreateTournamentHandler(pool *pgxpool.Pool) gin.HandlerFunc {
@@ -66,4 +80,117 @@ func GetAllTournamentsHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 		}
 		c.JSON(http.StatusOK, tournaments)
 	}
+}
+func GetTournamentHandler(pool *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		idStr := c.Param("id")
+		id, err := strconv.Atoi(idStr)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid tournament ID"})
+			return
+		}
+		tournament, err := repository.GetTournamentById(pool, id)
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Tournament not found"})
+			} else {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			}
+			return
+		}
+		c.JSON(http.StatusOK, tournament)
+	}
+}
+
+func UpdateTournamentHandler(pool *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		idStr := c.Param("id")
+		id, err := strconv.Atoi(idStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tournament ID"})
+			return
+		}
+
+		var req UpdateTournamentRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		existingTournament, err := repository.GetTournamentById(pool, id)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Tournament not found"})
+			return
+		}
+
+		if req.Title != nil {
+			existingTournament.Title = *req.Title
+		}
+		if req.Description != nil {
+			existingTournament.Description = *req.Description
+		}
+		if req.StartDate != nil {
+			existingTournament.StartDate = *req.StartDate
+		}
+		if req.MaxTeams != nil {
+			existingTournament.MaxTeams = *req.MaxTeams
+		}
+		if req.PrizePool != nil {
+			existingTournament.PrizePool = *req.PrizePool
+		}
+		if req.BannerURL != nil {
+			existingTournament.BannerUrl = *req.BannerURL
+		}
+
+		err = repository.UpdateTournament(pool, id, existingTournament)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update tournament: " + err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, existingTournament)
+	}
+}
+
+func UpdateTournamentStatusHandler(pool *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		idStr := c.Param("id")
+		id, err := strconv.Atoi(idStr)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid tournament ID"})
+			return
+		}
+		var req ChangeStatusRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Status must be upcoming ongoing finished"})
+			return
+		}
+		err = repository.UpdateTournamentStatus(pool, id, req.Status)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update tournament status: " + err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"status": req.Status})
+	}
+}
+func DeleteTournamentHandler(pool *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		idStr := c.Param("id")
+		id, err := strconv.Atoi(idStr)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid tournament ID"})
+			return
+		}
+		err = repository.DeleteTournament(pool, id)
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Tournament not found"})
+			} else {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete tournament: "})
+			}
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "Tournament deleted successfully"})
+	}
+
 }
