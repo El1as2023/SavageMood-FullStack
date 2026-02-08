@@ -49,6 +49,7 @@ func main() {
 		protected.GET("/profile", handlers.GetMe(pool))
 		protected.GET("tournaments", handlers.GetAllTournamentsHandler(pool))
 		protected.GET("/tournaments/:id", handlers.GetTournamentHandler(pool))
+		protected.POST("/create-team", handlers.CreateTeamHandler(pool))
 
 		//ADMIN
 		admin := protected.Group("/admin")
