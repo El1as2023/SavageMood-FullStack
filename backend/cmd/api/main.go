@@ -30,7 +30,7 @@ func main() {
 
 	router.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"http://localhost:3000"}, // Твій Next.js
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowMethods:     []string{"GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		AllowCredentials: true,
 	}))
@@ -47,9 +47,13 @@ func main() {
 	protected.Use(middleware.AuthMiddleware(cfg))
 	{
 		protected.GET("/profile", handlers.GetMe(pool))
-		protected.GET("tournaments", handlers.GetAllTournamentsHandler(pool))
+		protected.GET("/tournaments", handlers.GetAllTournamentsHandler(pool))
 		protected.GET("/tournaments/:id", handlers.GetTournamentHandler(pool))
-		protected.POST("/create-team", handlers.CreateTeamHandler(pool))
+		protected.POST("/team", handlers.CreateTeamHandler(pool))
+		protected.GET("/team/:id", handlers.GetTeamHandler(pool))
+		protected.POST("/team/join", handlers.JoinTeamHandler(pool))
+		protected.POST("/team/leave", handlers.LeaveTeamHandler(pool))
+		protected.DELETE("/team/delete/:id", handlers.DeleteTeamHandler(pool))
 
 		//ADMIN
 		admin := protected.Group("/admin")
