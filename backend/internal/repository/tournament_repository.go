@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -258,6 +259,76 @@ VALUES ($1, $2)
 	_, err = tx.Exec(ctx, queryRegister, tournamentId, teamId)
 	if err != nil {
 		return fmt.Errorf("team is already registered for this tournament")
+	}
+	return tx.Commit(ctx)
+}
+
+func StartTournament(pool *pgxpool.Pool, tournamentId int) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	var creatorId, status string
+	var maxTeams int
+
+	queryInfo := `
+	SELECT status,max_teams from tournament WHERE id=$1
+`
+	err = tx.QueryRow(ctx, queryInfo, tournamentId).Scan(&creatorId, &status, &maxTeams)
+	if err != nil {
+		return fmt.Errorf("tournament not found")
+	}
+	if status != "upcoming" {
+		return fmt.Errorf("tournament is already started or finished")
+	}
+	var teamIds []int
+	queryTeams := `SELECT teams_id FROM tournament_participants WHERE tournament_id=$1`
+	rows, err := tx.Query(ctx, queryTeams, tournamentId)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var tid int
+		if err = rows.Scan(&tid); err != nil {
+			return err
+		}
+		teamIds = append(teamIds, tid)
+	}
+	if len(teamIds) < 2 {
+		return fmt.Errorf("not enough teams to start tournament")
+	}
+	if len(teamIds)%2 != 0 {
+		return fmt.Errorf("number of teams must be even (e.g., 2,4,8,16)")
+	}
+
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	r.Shuffle(len(teamIds), func(i, j int) {
+		teamIds[i], teamIds[j] = teamIds[j], teamIds[i]
+	})
+
+	queryCreateMatch := `
+INSERT INTO matches (tournmaent_id, team_a_id, team_b_id, round, match_order,status)
+VALUES ($1, $2, $3, $4, 'pending')`
+	matchOrder := 1
+	for i := 0; i < len(teamIds); i += 2 {
+		teamA := teamIds[i]
+		teamB := teamIds[i+1]
+
+		_, err = tx.Exec(ctx, queryCreateMatch, tournamentId, teamA, teamB, matchOrder)
+		if err != nil {
+			return err
+		}
+		matchOrder++
+	}
+
+	_, err = tx.Exec(ctx, `UPDATE tournament SET STATUS = 'live' WHERE id = $1, tournament_Id`)
+	if err != nil {
+		return err
 	}
 	return tx.Commit(ctx)
 }

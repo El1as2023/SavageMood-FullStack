@@ -209,7 +209,7 @@ func RegisterTeamHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 		tournamentIdStr := c.Param("id")
 		tournamentId, err := strconv.Atoi(tournamentIdStr)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid tournament ID"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tournament ID"})
 			return
 		}
 		var req RegisterTeamRequest
@@ -238,5 +238,32 @@ func RegisterTeamHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"message": "Team registered successfully for tournament "})
+	}
+}
+
+func StartTournamentHandler(pool *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		idStr := c.Param("id")
+		tournamentId, err := strconv.Atoi(idStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tournament ID"})
+			return
+		}
+		err = repository.StartTournament(pool, tournamentId)
+		if err != nil {
+			errMsg := err.Error()
+			switch errMsg {
+			case "tournament is already started or finished":
+				c.JSON(http.StatusConflict, gin.H{"error": "Tournament is already started or finished"})
+			case "not enough teams to start tournament":
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Not enough teams to start tournament"})
+			case "number of teams must be even (e.g., 2,4,8,16)":
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Number of teams must be even (e.g., 2,4,8,16)"})
+			default:
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start tournament" + errMsg})
+			}
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "Tournament started successfully"})
 	}
 }

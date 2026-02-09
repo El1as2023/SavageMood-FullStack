@@ -63,6 +63,7 @@ func main() {
 		admin.PATCH("/tournaments/:id", handlers.UpdateTournamentHandler(pool))
 		admin.PATCH("/tournaments/:id/status", handlers.UpdateTournamentStatusHandler(pool))
 		admin.DELETE("/tournaments/:id", handlers.DeleteTournamentHandler(pool))
+		admin.POST("/tournaments/:id/start", handlers.StartTournamentHandler(pool))
 	}
 
 	router.Run(":" + cfg.Port)
