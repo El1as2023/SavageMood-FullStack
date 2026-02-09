@@ -54,6 +54,7 @@ func main() {
 		protected.POST("/team/join", handlers.JoinTeamHandler(pool))
 		protected.POST("/team/leave", handlers.LeaveTeamHandler(pool))
 		protected.DELETE("/team/delete/:id", handlers.DeleteTeamHandler(pool))
+		protected.POST("/tournaments/:id/register", handlers.RegisterTeamHandler(pool))
 
 		//ADMIN
 		admin := protected.Group("/admin")

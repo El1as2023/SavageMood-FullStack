@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -98,6 +99,7 @@ WHERE id = $1
 `
 
 	var tournament models.Tournament
+
 	err := pool.QueryRow(ctx, query, id).Scan(
 		&tournament.ID,
 		&tournament.Title,
@@ -112,6 +114,34 @@ WHERE id = $1
 		&tournament.CreatedAt,
 		&tournament.UpdatedAt)
 	if err != nil {
+		return nil, err
+	}
+	queryTeams := `
+	SELECT t.id, t.name, t.logo_url, t.captain_id
+FROM teams t
+	JOIN tournament_participants tp ON t.id = tp.team_id
+	WHERE tp.tournament_id = $1
+`
+	rows, err := pool.Query(ctx, queryTeams, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	tournament.Teams = []models.Team{}
+	for rows.Next() {
+		var team models.Team
+		err = rows.Scan(
+			&team.ID,
+			&team.Name,
+			&team.LogoUrl,
+			&team.CaptainId,
+		)
+		if err != nil {
+			return nil, err
+		}
+		tournament.Teams = append(tournament.Teams, team)
+	}
+	if err = rows.Err(); err != nil {
 		return nil, err
 	}
 	return &tournament, nil
@@ -176,4 +206,58 @@ func DeleteTournament(pool *pgxpool.Pool, id int) error {
 		return pgx.ErrNoRows
 	}
 	return nil
+}
+
+func RegisterTeamForTournament(pool *pgxpool.Pool, tournamentId int, teamId int, captainId string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	var realCaptainID string
+
+	queryCheckCaptain := `
+	SELECT captain_id FROM teams WHERE id=$1
+
+`
+	err = tx.QueryRow(ctx, queryCheckCaptain, teamId).Scan(&realCaptainID)
+	if err != nil {
+		return fmt.Errorf("team not found")
+	}
+	if realCaptainID != captainId {
+		return fmt.Errorf("only captain can register to tournament")
+	}
+
+	var maxTeams, currentTeams int
+	queryLimit := `
+SELECT max_teams FROM tournaments WHERE id=$1`
+	err = tx.QueryRow(ctx, queryLimit, tournamentId).Scan(&maxTeams)
+	if err != nil {
+		return fmt.Errorf("tournament not found")
+	}
+
+	queryCount := `
+SELECT count(*) FROM tournament_participants WHERE tournament_id=$1`
+	err = tx.QueryRow(ctx, queryCount, tournamentId).Scan(&currentTeams)
+	if err != nil {
+		return err
+	}
+
+	if currentTeams >= maxTeams {
+		return fmt.Errorf("tournament is full")
+	}
+
+	queryRegister := `
+INSERT INTO tournament_participants (tournament_id, team_id)
+VALUES ($1, $2)
+`
+	_, err = tx.Exec(ctx, queryRegister, tournamentId, teamId)
+	if err != nil {
+		return fmt.Errorf("team is already registered for this tournament")
+	}
+	return tx.Commit(ctx)
 }

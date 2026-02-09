@@ -33,6 +33,10 @@ type ChangeStatusRequest struct {
 	Status string `json:"status" binding:"required,oneof=upcoming ongoing finished"`
 }
 
+type RegisterTeamRequest struct {
+	TeamId int `json:"teamId" binding:"required"`
+}
+
 func CreateTournamentHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 
@@ -193,4 +197,46 @@ func DeleteTournamentHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{"message": "Tournament deleted successfully"})
 	}
 
+}
+
+func RegisterTeamHandler(pool *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userId, exists := c.Get("userId")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "You need to be logged in"})
+			return
+		}
+		tournamentIdStr := c.Param("id")
+		tournamentId, err := strconv.Atoi(tournamentIdStr)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid tournament ID"})
+			return
+		}
+		var req RegisterTeamRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		err = repository.RegisterTeamForTournament(pool, tournamentId, req.TeamId, userId.(string))
+		if err != nil {
+			errMsg := err.Error()
+			switch errMsg {
+			case "team not found":
+				c.JSON(http.StatusNotFound, gin.H{"error": "Team not found"})
+			case "tournament not found":
+				c.JSON(http.StatusNotFound, gin.H{"error": "Tournament not found"})
+			case "only captain can register to tournament":
+				c.JSON(http.StatusForbidden, gin.H{"error": errMsg})
+			case "tournament is full":
+				c.JSON(http.StatusConflict, gin.H{"error": errMsg})
+			case "team is already registered for this tournament":
+				c.JSON(http.StatusConflict, gin.H{"error": errMsg})
+			default:
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to register team for tournament" + errMsg})
+
+			}
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "Team registered successfully for tournament "})
+	}
 }
