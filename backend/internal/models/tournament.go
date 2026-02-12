@@ -16,5 +16,8 @@ type Tournament struct {
 	CreatedAt   time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at" db:"updated_at"`
 
+	ChallongeID  int    `json:"challongeId" db:"challonge_id"`
+	ChallongeURL string `json:"challongeUrl" db:"challonge_url"`
+
 	Teams []Team `json:"teams,omitempty"`
 }

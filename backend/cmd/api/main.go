@@ -10,6 +10,7 @@ import (
 	"github.com/savagemood/backend/internal/database"
 	"github.com/savagemood/backend/internal/handlers"
 	"github.com/savagemood/backend/internal/middleware"
+	"github.com/savagemood/backend/internal/services"
 )
 
 func main() {
@@ -25,6 +26,8 @@ func main() {
 		log.Fatal("Error connecting to database: ", err)
 	}
 	defer pool.Close()
+
+	challongeService := services.NewChallongeService(cfg.ChallongeAPIKey, cfg.ChallongeUsername)
 
 	var router *gin.Engine = gin.Default()
 
@@ -54,16 +57,17 @@ func main() {
 		protected.POST("/team/join", handlers.JoinTeamHandler(pool))
 		protected.POST("/team/leave", handlers.LeaveTeamHandler(pool))
 		protected.DELETE("/team/delete/:id", handlers.DeleteTeamHandler(pool))
-		protected.POST("/tournaments/:id/register", handlers.RegisterTeamHandler(pool))
+		protected.POST("/tournaments/:id/register", handlers.RegisterTeamHandler(pool, challongeService))
 
 		//ADMIN
 		admin := protected.Group("/admin")
 		admin.Use(middleware.AdminMiddleware())
-		admin.POST("/create-tournament", handlers.CreateTournamentHandler(pool))
+		admin.POST("/create-tournament", handlers.CreateTournamentHandler(pool, challongeService))
 		admin.PATCH("/tournaments/:id", handlers.UpdateTournamentHandler(pool))
 		admin.PATCH("/tournaments/:id/status", handlers.UpdateTournamentStatusHandler(pool))
 		admin.DELETE("/tournaments/:id", handlers.DeleteTournamentHandler(pool))
-		admin.POST("/tournaments/:id/start", handlers.StartTournamentHandler(pool))
+		admin.POST("/tournaments/:id/start", handlers.StartTournamentHandler(pool, challongeService))
+
 	}
 
 	router.Run(":" + cfg.Port)

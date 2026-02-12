@@ -20,11 +20,12 @@ func CreateTournament(pool *pgxpool.Pool, t *models.Tournament) (*models.Tournam
 	var query string = `
 		INSERT INTO tournaments (
 			title, description, status, start_date, end_date, 
-			max_teams, prize_pool, banner_url, creator_id
+			max_teams, prize_pool, banner_url, creator_id, challonge_id, challonge_url
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9,$10, $11)
 		RETURNING id, created_at, updated_at
 	`
+	challongeIDStr := fmt.Sprintf("%d", t.ChallongeID)
 	err := pool.QueryRow(ctx, query,
 		t.Title,
 		t.Description,
@@ -35,6 +36,8 @@ func CreateTournament(pool *pgxpool.Pool, t *models.Tournament) (*models.Tournam
 		t.PrizePool,
 		t.BannerUrl,
 		t.CreatorId,
+		challongeIDStr,
+		t.ChallongeURL,
 	).Scan(&t.ID, &t.CreatedAt, &t.UpdatedAt)
 	if err != nil {
 		return nil, err
@@ -94,7 +97,7 @@ func GetTournamentById(pool *pgxpool.Pool, id int) (*models.Tournament, error) {
 
 	var query string = `
 SELECT id, title, description, status, start_date, end_date,
-max_teams, prize_pool, banner_url, creator_id, created_at, updated_at
+max_teams, prize_pool, banner_url, creator_id, created_at, updated_at,challonge_id, challonge_url
 FROM tournaments
 WHERE id = $1
 `
@@ -113,7 +116,9 @@ WHERE id = $1
 		&tournament.BannerUrl,
 		&tournament.CreatorId,
 		&tournament.CreatedAt,
-		&tournament.UpdatedAt)
+		&tournament.UpdatedAt,
+		&tournament.ChallongeID,
+		&tournament.ChallongeURL)
 	if err != nil {
 		return nil, err
 	}
@@ -176,23 +181,6 @@ SET title=$1, description=$2, start_date=$3, max_teams=$4, prize_pool=$5, banner
 	return nil
 }
 
-func UpdateTournamentStatus(pool *pgxpool.Pool, id int, newStatus string) error {
-	var ctx context.Context
-	var cancel context.CancelFunc
-	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	query := `UPDATE tournaments
-SET status=$1, updated_at=NOW() WHERE id=$2`
-	commandTag, err := pool.Exec(ctx, query, newStatus, id)
-	if err != nil {
-		return err
-	}
-	if commandTag.RowsAffected() == 0 {
-		return pgx.ErrNoRows
-	}
-	return nil
-}
 func DeleteTournament(pool *pgxpool.Pool, id int) error {
 	var ctx context.Context
 	var cancel context.CancelFunc
@@ -209,47 +197,49 @@ func DeleteTournament(pool *pgxpool.Pool, id int) error {
 	return nil
 }
 
-func RegisterTeamForTournament(pool *pgxpool.Pool, tournamentId int, teamId int, captainId string) error {
+func RegisterTeamForTournament(pool *pgxpool.Pool, tournamentId int, teamId int, captainId string) (string, string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	tx, err := pool.Begin(ctx)
 	if err != nil {
-		return err
+		return "", "", err
 	}
 	defer tx.Rollback(ctx)
 
-	var realCaptainID string
+	var realCaptainID, teamName string
 
 	queryCheckCaptain := `
-	SELECT captain_id FROM teams WHERE id=$1
+	SELECT captain_id, name FROM teams WHERE id=$1
 
 `
-	err = tx.QueryRow(ctx, queryCheckCaptain, teamId).Scan(&realCaptainID)
+	err = tx.QueryRow(ctx, queryCheckCaptain, teamId).Scan(&realCaptainID, &teamName)
 	if err != nil {
-		return fmt.Errorf("team not found")
+		return "", "", fmt.Errorf("team not found")
 	}
 	if realCaptainID != captainId {
-		return fmt.Errorf("only captain can register to tournament")
+		return "", "", fmt.Errorf("only captain can register to tournament")
 	}
 
-	var maxTeams, currentTeams int
+	var maxTeams int
+	var challongeUrl string
 	queryLimit := `
-SELECT max_teams FROM tournaments WHERE id=$1`
-	err = tx.QueryRow(ctx, queryLimit, tournamentId).Scan(&maxTeams)
+SELECT max_teams, challonge_url FROM tournaments WHERE id=$1`
+	err = tx.QueryRow(ctx, queryLimit, tournamentId).Scan(&maxTeams, &challongeUrl)
 	if err != nil {
-		return fmt.Errorf("tournament not found")
+		return "", "", fmt.Errorf("tournament not found")
 	}
 
+	var currentTeams int
 	queryCount := `
 SELECT count(*) FROM tournament_participants WHERE tournament_id=$1`
 	err = tx.QueryRow(ctx, queryCount, tournamentId).Scan(&currentTeams)
 	if err != nil {
-		return err
+		return "", "", err
 	}
 
 	if currentTeams >= maxTeams {
-		return fmt.Errorf("tournament is full")
+		return "", "", fmt.Errorf("tournament is full")
 	}
 
 	queryRegister := `
@@ -258,77 +248,56 @@ VALUES ($1, $2)
 `
 	_, err = tx.Exec(ctx, queryRegister, tournamentId, teamId)
 	if err != nil {
-		return fmt.Errorf("team is already registered for this tournament")
+		return "", "", fmt.Errorf("team is already registered for this tournament")
 	}
-	return tx.Commit(ctx)
+	if err = tx.Commit(ctx); err != nil {
+		return "", "", err
+	}
+	return challongeUrl, teamName, nil
 }
 
-func StartTournament(pool *pgxpool.Pool, tournamentId int) error {
+func GetTournamentForStart(pool *pgxpool.Pool, tournamentId int) (string, string, string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	tx, err := pool.Begin(ctx)
+
+	var creatorId, challongeUrl, status string
+
+	query := `SELECT creator_id, challonge_url, status FROM tournaments WHERE id=$1`
+
+	err := pool.QueryRow(ctx, query, tournamentId).Scan(&creatorId, &challongeUrl, &status)
 	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx)
-
-	var creatorId, status string
-	var maxTeams int
-
-	queryInfo := `
-	SELECT status,max_teams from tournament WHERE id=$1
-`
-	err = tx.QueryRow(ctx, queryInfo, tournamentId).Scan(&creatorId, &status, &maxTeams)
-	if err != nil {
-		return fmt.Errorf("tournament not found")
-	}
-	if status != "upcoming" {
-		return fmt.Errorf("tournament is already started or finished")
-	}
-	var teamIds []int
-	queryTeams := `SELECT teams_id FROM tournament_participants WHERE tournament_id=$1`
-	rows, err := tx.Query(ctx, queryTeams, tournamentId)
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var tid int
-		if err = rows.Scan(&tid); err != nil {
-			return err
-		}
-		teamIds = append(teamIds, tid)
-	}
-	if len(teamIds) < 2 {
-		return fmt.Errorf("not enough teams to start tournament")
-	}
-	if len(teamIds)%2 != 0 {
-		return fmt.Errorf("number of teams must be even (e.g., 2,4,8,16)")
+		return "", "", "", fmt.Errorf("tournament not found")
 	}
 
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	r.Shuffle(len(teamIds), func(i, j int) {
-		teamIds[i], teamIds[j] = teamIds[j], teamIds[i]
-	})
+	return creatorId, challongeUrl, status, nil
+}
 
-	queryCreateMatch := `
-INSERT INTO matches (tournmaent_id, team_a_id, team_b_id, round, match_order,status)
-VALUES ($1, $2, $3, $4, 'pending')`
-	matchOrder := 1
-	for i := 0; i < len(teamIds); i += 2 {
-		teamA := teamIds[i]
-		teamB := teamIds[i+1]
+func UpdateTournamentStatus(pool *pgxpool.Pool, tournamentId int, newStatus string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
-		_, err = tx.Exec(ctx, queryCreateMatch, tournamentId, teamA, teamB, matchOrder)
-		if err != nil {
-			return err
-		}
-		matchOrder++
-	}
+	query := `UPDATE tournaments SET status = $1 WHERE id = $2`
 
-	_, err = tx.Exec(ctx, `UPDATE tournament SET STATUS = 'live' WHERE id = $1, tournament_Id`)
-	if err != nil {
-		return err
-	}
-	return tx.Commit(ctx)
+	_, err := pool.Exec(ctx, query, newStatus, tournamentId)
+	return err
+}
+
+func RemoveTeamFromTournament(pool *pgxpool.Pool, tournamentId int, teamId int) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	query := `DELETE FROM tournament_participants WHERE tournament_id=$1 AND team_id=$2`
+
+	_, err := pool.Exec(ctx, query, tournamentId, teamId)
+	return err
+}
+
+func FinishedTournament(pool *pgxpool.Pool, tournamentId int, newStatus string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	query := `UPDATE tournaments SET status = $1 WHERE id = $2`
+
+	_, err := pool.Exec(ctx, query, newStatus, tournamentId)
+	return err
 }
