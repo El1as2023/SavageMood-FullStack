@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/savagemood/backend/internal/config"
 	"github.com/savagemood/backend/internal/models"
 	"github.com/savagemood/backend/internal/repository"
+	"github.com/savagemood/backend/internal/services"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -38,7 +40,7 @@ type LoginResponse struct {
 	User  UserResponse `json:"user"`
 }
 
-func Register(pool *pgxpool.Pool) gin.HandlerFunc {
+func Register(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var registerRequest RegisterRequest
 		if err := c.ShouldBindJSON(&registerRequest); err != nil {
@@ -77,7 +79,33 @@ func Register(pool *pgxpool.Pool) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
-		c.JSON(http.StatusCreated, createdUser)
+		go func() {
+			emailService := services.NewEmailService(cfg)
+
+			err := emailService.SendVerificationEmail(createdUser.Email, vToken)
+			if err != nil {
+				fmt.Printf("Failed to send verification email to %s: %v\n", createdUser.Email, err)
+			} else {
+				fmt.Printf("Email  verification sent to : %v\n", createdUser.Email)
+			}
+		}()
+		c.JSON(http.StatusCreated, gin.H{"message": "Registration successful! Please Check your email address to activate your account"})
+	}
+}
+
+func VerifyEmail(pool *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		token := c.Query("token")
+		if token == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "No token provided"})
+			return
+		}
+		err := repository.VerifyUser(pool, token)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid token"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "Email verified successfully"})
 	}
 }
 
@@ -98,6 +126,11 @@ func Login(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 			return
 		}
+		if !user.IsVerified {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Please verify your email"})
+			return
+		}
+
 		claims := jwt.MapClaims{
 			"sub":  user.ID,
 			"role": user.Role,

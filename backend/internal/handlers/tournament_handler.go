@@ -314,7 +314,7 @@ func FinishedTournamentHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 
-		/
+		
 		userId, exists := c.Get("userId")
 		if !exists {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
@@ -341,7 +341,7 @@ func FinishedTournamentHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 
-	
+
 		err = repository.FinishedTournament(pool, tournamentId, "finished")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to finish tournament: " + err.Error()})

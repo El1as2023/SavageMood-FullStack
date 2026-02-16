@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"time"
 
 	"github.com/jackc/pgx/v5"

@@ -43,8 +43,9 @@ func main() {
 			"message": "Welocme to SavageMOOD",
 		})
 	})
-	router.POST("/auth/register", handlers.Register(pool))
+	router.POST("/auth/register", handlers.Register(pool, cfg))
 	router.POST("/auth/login", handlers.Login(pool, cfg))
+	router.GET("/verify-email", handlers.VerifyEmail(pool))
 
 	protected := router.Group("/api")
 	protected.Use(middleware.AuthMiddleware(cfg))

@@ -13,6 +13,11 @@ type Config struct {
 	JWTSecret         string
 	ChallongeAPIKey   string
 	ChallongeUsername string
+	SMTPHost          string
+	SMTPPort          string
+	SMTPUser          string
+	SMTPPassword      string
+	FrontendURL       string
 }
 
 func Load() (*Config, error) {
@@ -26,6 +31,11 @@ func Load() (*Config, error) {
 		JWTSecret:         os.Getenv("JWT_SECRET"),
 		ChallongeAPIKey:   os.Getenv("CHALLONGE_API_KEY"),
 		ChallongeUsername: os.Getenv("CHALLONGE_USERNAME"),
+		SMTPHost:          os.Getenv("SMTP_HOST"),
+		SMTPPort:          os.Getenv("SMTP_PORT"),
+		SMTPUser:          os.Getenv("SMTP_USER"),
+		SMTPPassword:      os.Getenv("SMTP_PASS"),
+		FrontendURL:       os.Getenv("FRONTEND_URL"),
 	}
 	return config, nil
 }

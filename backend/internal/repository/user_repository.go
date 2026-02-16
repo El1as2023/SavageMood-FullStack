@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -69,6 +70,28 @@ WHERE email = $1
 		return nil, err
 	}
 	return &user, nil
+}
+
+func VerifyUser(pool *pgxpool.Pool, token string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	query := `
+UPDATE users 
+SET is_verified = true,
+    verification_token = NULL,
+    verification_expires_at = NULL
+    WHERE verification_token = $1
+    AND verification_expires_at > NOW()`
+
+	cmdTag, err := pool.Exec(ctx, query, token)
+	if err != nil {
+		return err
+	}
+	if cmdTag.RowsAffected() == 0 {
+		return fmt.Errorf("Invalid token or expired token")
+	}
+	return nil
 }
 
 func GetUserById(pool *pgxpool.Pool, userId string) (*models.User, error) {
