@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/savagemood/backend/internal/models"
 )
@@ -118,4 +119,30 @@ WHERE id = $1`
 		return nil, err
 	}
 	return &user, nil
+}
+
+func GetTeamByUserID(pool *pgxpool.Pool, userID string) (*models.Team, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var team models.Team
+	// Хитрий запит: ми шукаємо команду, де цей юзер є учасником
+	query := `
+        SELECT t.id, t.name, t.captain_id, t.logo_url, t.created_at, t.updated_at
+        FROM teams t
+        JOIN teams_members tm ON t.id = tm.team_id
+        WHERE tm.user_id = $1
+    `
+
+	err := pool.QueryRow(ctx, query, userID).Scan(
+		&team.ID, &team.Name, &team.CaptainId, &team.LogoUrl, &team.CreatedAt, &team.UpdatedAt,
+	)
+
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, nil //
+		}
+		return nil, err
+	}
+	return &team, nil
 }

@@ -31,6 +31,19 @@ func CreateTeamHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 		captainID := userID.(string)
+
+		isInTeam, err := repository.IsUserInAnyTeam(pool, captainID)
+		if err != nil {
+			// Логуємо помилку для себе, а клієнту кажемо "спробуй пізніше"
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check team status"})
+			return
+		}
+		if isInTeam {
+			// 409 Conflict — ідеальний код для цього випадку
+			c.JSON(http.StatusConflict, gin.H{"error": "You are already in a team. You cannot create a new one."})
+			return
+		}
+
 		var req CreateTeamRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -41,7 +54,7 @@ func CreateTeamHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			LogoUrl:   req.LogoURL,
 			CaptainId: captainID,
 		}
-		err := repository.CreateTeam(pool, team)
+		err = repository.CreateTeam(pool, team)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create team, name might be already taken"})
 			return

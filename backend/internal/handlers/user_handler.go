@@ -29,10 +29,11 @@ type LoginRequest struct {
 	Password string `json:"password" binding:"required,min=8"`
 }
 type UserResponse struct {
-	ID       string `json:"id"`
-	Username string `json:"username"`
-	Email    string `json:"email"`
-	Role     string `json:"role"`
+	ID       string       `json:"id"`
+	Username string       `json:"username"`
+	Email    string       `json:"email"`
+	Role     string       `json:"role"`
+	Team     *models.Team `json:"team,omitempty"`
 }
 
 type LoginResponse struct {
@@ -168,11 +169,18 @@ func GetMe(pool *pgxpool.Pool) gin.HandlerFunc {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Not found"})
 			return
 		}
+		team, err := repository.GetTeamByUserID(pool, user.ID)
+		if err != nil {
+			fmt.Printf("Error fetching user team: %v\n", err)
+		}
+
+		user.Team = team
 		response := UserResponse{
 			ID:       user.ID,
 			Username: user.Username,
 			Email:    user.Email,
 			Role:     user.Role,
+			Team:     team,
 		}
 		c.JSON(http.StatusOK, response)
 	}

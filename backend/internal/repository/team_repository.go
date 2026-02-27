@@ -175,3 +175,12 @@ func DeleteTeam(pool *pgxpool.Pool, teamId int, captainId string) error {
 	}
 	return nil
 }
+func IsUserInAnyTeam(pool *pgxpool.Pool, userId string) (bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var exists bool
+	query := `SELECT EXISTS(SELECT 1 FROM teams_members WHERE user_id = $1)`
+
+	err := pool.QueryRow(ctx, query, userId).Scan(&exists)
+	return exists, err
+}

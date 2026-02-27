@@ -43,11 +43,15 @@ func main() {
 			"message": "Welocme to SavageMOOD",
 		})
 	})
-	router.POST("/auth/register", handlers.Register(pool, cfg))
-	router.POST("/auth/login", handlers.Login(pool, cfg))
-	router.GET("/verify-email", handlers.VerifyEmail(pool))
+	api := router.Group("/api")
+	{
+		// 1. Публічні маршрути (тепер вони будуть /api/auth/...)
+		api.POST("/auth/register", handlers.Register(pool, cfg))
+		api.POST("/auth/login", handlers.Login(pool, cfg))
+		api.GET("/verify-email", handlers.VerifyEmail(pool))
+	}
 
-	protected := router.Group("/api")
+	protected := api.Group("/")
 	protected.Use(middleware.AuthMiddleware(cfg))
 	{
 		protected.GET("/profile", handlers.GetMe(pool))

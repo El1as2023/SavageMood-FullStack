@@ -1,3 +1,3 @@
 ALTER TABLE tournaments
-    DROP COLUMN challonge_id,
-    DROP COLUMN challonge_url;
+    DROP COLUMN IF EXISTS challonge_id,
+    DROP COLUMN IF EXISTS challonge_url;

@@ -13,4 +13,6 @@ type User struct {
 	VerificationExpiresAt *time.Time `json:"-"`
 	CreatedAt             time.Time  `json:"created_at"`
 	UpdatedAt             time.Time  `json:"updated_at"`
+
+	Team *Team `json:"team,omitempty" db:"-"`
 }
