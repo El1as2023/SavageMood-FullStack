@@ -1,11 +1,11 @@
 'use client'
 
-import { useTournaments } from '@/hooks/useTournaments'; // <--- Імпортуємо наш новий хук
-import TournamentCard from '@/components/ui/TournamentCard'; // Не забудь створити картку (код був вище)
+import { useTournaments } from '@/hooks/useTournaments';
+import TournamentCard from '@/components/ui/TournamentCard';
 
 
 const TournamentsPage = () => {
-    // Використовуємо хук - все в одному рядку!
+
     const { tournaments, isLoading, error } = useTournaments();
 
     return (

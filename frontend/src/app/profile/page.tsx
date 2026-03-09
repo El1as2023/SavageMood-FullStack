@@ -18,7 +18,7 @@ const ProfilePage = () => {
         );
     }
 
-    // Якщо юзера немає, хук сам зробить редірект, тому повертаємо null
+
     if (!user) return null;
 
     return (

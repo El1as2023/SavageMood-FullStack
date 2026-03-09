@@ -1,13 +1,13 @@
 'use client'
 
 import { useCreateTeam } from '@/hooks/useCreateTeam';
-import CreateTeamForm from "@/components/layout/CreateTeamForm"; // Перевір шлях, якщо компонент лежить в іншому місці
+import CreateTeamForm from "@/components/layout/CreateTeamForm";
 
 const CreateTeamPage = () => {
-    // 1. Викликаємо оновлений хук
+
     const {
         name, setName,
-        selectedFile, previewUrl, handleFileSelect, handleRemoveFile, // <--- Додали ці поля
+        selectedFile, previewUrl, handleFileSelect, handleRemoveFile,
         isLoading, error, createTeam
     } = useCreateTeam();
 
@@ -19,12 +19,12 @@ const CreateTeamPage = () => {
                 <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl"></div>
             </div>
 
-            {/* 2. Рендеримо компонент з новими пропсами */}
+
             <CreateTeamForm
                 name={name}
                 setName={setName}
 
-                // Передаємо нові пропси для файлів
+
                 selectedFile={selectedFile}
                 previewUrl={previewUrl}
                 handleFileSelect={handleFileSelect}

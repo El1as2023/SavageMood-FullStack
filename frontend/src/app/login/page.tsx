@@ -5,7 +5,7 @@ import {ButtonAuth} from "@/components/ui/ButtonAuth";
 import {useLogin} from "@/hooks/useLogin";
 
 export default function LoginPage() {
-    // Дістаємо логіку з хука
+
     const { formData, isLoading, error, handleChange, handleSubmit } = useLogin();
 
     return (

@@ -3,10 +3,10 @@
 import Link from 'next/link';
 import { ArrowLeft, Users, Loader2, AlertCircle, Search } from 'lucide-react';
 import Button from '@/components/ui/Button';
-import { useJoinTeam } from '@/hooks/useJoinTeam'; // <--- Імпортуємо наш новий хук
+import { useJoinTeam } from '@/hooks/useJoinTeam';
 
 const JoinTeamPage = () => {
-    // Використовуємо хук
+
     const {
         teamId,
         setTeamId,
@@ -48,7 +48,7 @@ const JoinTeamPage = () => {
                             <div className="relative">
                                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600" size={18} />
                                 <input
-                                    type="text" // Використовуем text, але валідуємо як число
+                                    type="text"
                                     inputMode="numeric"
                                     pattern="[0-9]*"
                                     required
