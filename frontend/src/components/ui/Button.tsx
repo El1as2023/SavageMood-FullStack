@@ -1,33 +1,48 @@
+import React from 'react';
+import Link from 'next/link'; // <--- Додали імпорт Link
+
+type ButtonSize = 'sm' | 'default' | 'lg';
+
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-    isLoading?: boolean;
+    size?: ButtonSize;
     children: React.ReactNode;
-    variant?: 'primary' | 'outline'; // Додав варіанти для гнучкості
+    href?: string; // <--- Додали необов'язковий проп href
 }
 
-export function Button({ isLoading, children, variant = 'primary', ...props }: ButtonProps) {
-    const baseStyles = "w-full py-3 rounded-lg font-bold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center";
+const Button = ({
+                    className = '',
+                    size = 'default',
+                    children,
+                    href, // <--- Дістаємо href
+                    ...props
+                }: ButtonProps) => {
 
-    const variants = {
-        primary: "bg-red-600 hover:bg-red-700 text-white shadow-[0_0_15px_rgba(220,38,38,0.3)] hover:shadow-[0_0_20px_rgba(220,38,38,0.5)]",
-        outline: "bg-transparent border border-zinc-700 text-zinc-300 hover:border-red-600 hover:text-red-500"
+    const baseClasses = "inline-flex items-center justify-center gap-2 rounded-full font-bold text-white transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 bg-gradient-to-r from-[#1E40AF] via-[#3B82F6] to-[#7C3AED] hover:opacity-90 shadow-lg hover:shadow-xl active:scale-95";
+
+
+    const sizeClasses: Record<ButtonSize, string> = {
+        sm: "px-4 py-2 text-sm",
+        default: "px-6 py-3 text-base",
+        lg: "px-8 py-4 text-lg",
     };
 
+    const classes = `${sizeClasses[size]} ${baseClasses} ${className}`;
+
+    // 1. ЯКЩО Є ПОСИЛАННЯ (href) — рендеримо Link
+    if (href) {
+        return (
+            <Link href={href} className={classes}>
+                {children}
+            </Link>
+        );
+    }
+
+    // 2. ЯКЩО НЕМАЄ — рендеримо звичайну кнопку
     return (
-        <button
-            {...props}
-            disabled={isLoading || props.disabled}
-            className={`${baseStyles} ${variants[variant]}`}
-        >
-            {isLoading ? (
-                <span className="flex items-center gap-2">
-          {/* Червоний спінер */}
-                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-          Зачекайте...
-        </span>
-            ) : children}
+        <button className={classes} {...props}>
+            {children}
         </button>
     );
-}
+};
+
+export default Button;

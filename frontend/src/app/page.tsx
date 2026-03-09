@@ -1,9 +1,14 @@
+import Hero from "@/components/layout/Hero";
+import Faq from "@/components/layout/Faq";
+import Footer from "@/components/layout/Footer";
+
 
 export default function Home() {
     return (
-        <main className="flex min-h-screen flex-col items-center justify-center p-24">
-            <h1 className="text-4xl font-bold">SavageMood Frontend 🚀</h1>
-            <p>Готовий до інтеграції!</p>
+        <main className="">
+            <Hero />
+            <Faq />
+            <Footer />
         </main>
     );
 }

@@ -2,3 +2,116 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+@layer theme {
+
+    @theme{
+
+        --color-background : #0f1418;
+
+        --color-foreground: #f0f2f5;
+
+        --color-card: #141f1f;
+
+
+
+        --color-primary: #7777f6;
+
+        --color-primary-foreground: #ffffff;
+
+
+
+        --color-secondary: #1f2830;
+
+        --color-secondary-foreground: #20b2a6;
+
+
+
+        --color-muted: #252e37;
+
+        --color-muted-foreground: #6264ae;
+
+
+
+        --color-nav: #d1d1d1;
+
+        --color-border: #434181;
+
+
+
+        --radius: 0.75rem;
+
+
+
+        --color-highlight: #f5a623;
+
+        --color-surface: #1a2329;
+
+
+
+        --font-orbitron: 'Orbitron', sans-serif;
+
+        --font-doto: 'Doto', sans-serif;
+
+    }
+
+
+
+}
+
+@layer base {
+
+    html {
+
+        scroll-behavior: smooth;
+
+    }
+
+    button{
+
+        cursor: pointer;
+
+    }
+
+    body{
+
+        background-color: var(--color-background);
+
+        color: var(--color-foreground);
+
+        font-family: 'Inter', sans-serif;
+
+    }
+
+
+
+}
+
+@layer components {
+
+    .glass{
+
+        @apply border border-white/15 bg-surface/10 backdrop-blur;
+
+    }
+
+
+
+}
+
+@layer utilities {
+
+    .font-serif{
+
+        font-family: 'Playfair Display', serif;
+
+    }
+
+    .font-digital{
+
+        font-family: var(--font-doto);
+
+    }
+
+}
+
+

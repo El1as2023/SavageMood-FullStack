@@ -20,5 +20,9 @@ export const authService = {
    },
     logout() {
         localStorage.removeItem("token");
+    },
+    async getMe(){
+        const response = await api.get<IAuthResponse>("/profile");
+        return response.data;
     }
 };

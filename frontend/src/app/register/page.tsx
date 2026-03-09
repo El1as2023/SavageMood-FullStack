@@ -1,6 +1,6 @@
 'use client';
 import {useRegister} from "@/hooks/useRegister";
-import {Button} from "@/components/ui/Button";
+import {ButtonAuth} from "@/components/ui/ButtonAuth";
 import Link from "next/link";
 import {Input} from "@/components/ui/Input";
 
@@ -19,7 +19,7 @@ export default function  RegisterPage(){
                         Ми відправили магічне посилання на <span className="text-red-400">{formData.email}</span>.
                     </p>
                     <Link href="/login">
-                        <Button variant="outline">Перейти до входу</Button>
+                        <ButtonAuth variant="outline">Перейти до входу</ButtonAuth>
                     </Link>
                 </div>
             </div>
@@ -29,7 +29,6 @@ export default function  RegisterPage(){
     return (
         <div className="flex min-h-screen items-center justify-center bg-black p-4">
             <div className="w-full max-w-md">
-                {/* Логотип або Заголовок */}
                 <div className="text-center mb-8">
                     <h1 className="text-4xl font-black text-white tracking-tighter uppercase italic">
                         Savage<span className="text-red-600">Mood</span>
@@ -79,9 +78,9 @@ export default function  RegisterPage(){
                     </div>
 
                     <div className="mt-8">
-                        <Button type="submit" isLoading={status === "loading"}>
+                        <ButtonAuth type="submit" isLoading={status === "loading"}>
                             Створити акаунт
-                        </Button>
+                        </ButtonAuth>
                     </div>
 
                     <p className="text-center text-zinc-500 text-sm mt-6">
