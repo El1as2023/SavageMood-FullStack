@@ -34,6 +34,7 @@ SavageMood is a professional-grade automated system designed for organizing and 
 ### Backend
 - **Go (Golang)** – High-concurrency server core
 - **PostgreSQL** – Relational database for persistent storage
+- **Redis** – In-memory cache for bracket data
 - **JWT** – Secure token-based authentication
 - **Challonge API** – External integration for professional bracket logic
 - **SMTP Sandbox** – Email verification testing (Mailtrap / Mailhog)
@@ -102,6 +103,8 @@ JWT_SECRET=your_jwt_secret
 CHALLONGE_API_KEY=
 CHALLONGE_USERNAME=
 
+REDIS_URL=redis://localhost:6379
+
 SMTP_HOST=
 SMTP_PORT=
 SMTP_USER=
@@ -118,7 +121,7 @@ FRONTEND_URL=http://localhost:3000
 docker compose up -d
 ```
 
-This will start the PostgreSQL database container.
+This will start the PostgreSQL database and Redis containers.
 
 ---
 
@@ -151,3 +154,38 @@ Frontend will be available at:
 ```
 http://localhost:3000
 ```
+
+---
+
+## 🧪 Testing
+
+```bash
+cd backend
+```
+
+Run all tests:
+
+```bash
+go test ./...
+```
+
+Run tests with output:
+
+```bash
+go test ./... -v
+```
+
+Run a specific package:
+
+```bash
+go test ./internal/config/...
+go test ./internal/middleware/...
+go test ./internal/services/...
+go test ./internal/handlers/...
+```
+
+Run a specific test by name:
+
+```bash
+go test ./internal/middleware/... -run TestAuthMiddleware_ExpiredToken -v
+```

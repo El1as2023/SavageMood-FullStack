@@ -291,12 +291,3 @@ func RemoveTeamFromTournament(pool *pgxpool.Pool, tournamentId int, teamId int) 
 	return err
 }
 
-func FinishedTournament(pool *pgxpool.Pool, tournamentId int, newStatus string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	query := `UPDATE tournaments SET status = $1 WHERE id = $2`
-
-	_, err := pool.Exec(ctx, query, newStatus, tournamentId)
-	return err
-}

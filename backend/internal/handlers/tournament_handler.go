@@ -1,7 +1,10 @@
 package handlers
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -9,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 	"github.com/savagemood/backend/internal/models"
 	"github.com/savagemood/backend/internal/repository"
 	"github.com/savagemood/backend/internal/services"
@@ -39,7 +43,7 @@ type RegisterTeamRequest struct {
 	TeamId int `json:"teamId" binding:"required"`
 }
 
-func CreateTournamentHandler(pool *pgxpool.Pool, chService *services.ChallongeService) gin.HandlerFunc {
+func CreateTournamentHandler(pool *pgxpool.Pool, chService services.ChallongeServiceInterface) gin.HandlerFunc {
 	return func(c *gin.Context) {
 
 		userIdInterface, exists := c.Get("userId")
@@ -49,7 +53,6 @@ func CreateTournamentHandler(pool *pgxpool.Pool, chService *services.ChallongeSe
 		}
 		userId, ok := userIdInterface.(string)
 		if !ok {
-
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID format"})
 			return
 		}
@@ -63,7 +66,8 @@ func CreateTournamentHandler(pool *pgxpool.Pool, chService *services.ChallongeSe
 
 		chResponse, err := chService.CreateTournament(req.Title, challongeUrl)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create tournament" + err.Error()})
+			slog.Error("Failed to create tournament on Challonge", "error", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create tournament on Challonge"})
 			return
 		}
 
@@ -98,6 +102,7 @@ func GetAllTournamentsHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 		c.JSON(http.StatusOK, tournaments)
 	}
 }
+
 func GetTournamentHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		idStr := c.Param("id")
@@ -174,7 +179,7 @@ func UpdateTournamentStatusHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 		idStr := c.Param("id")
 		id, err := strconv.Atoi(idStr)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid tournament ID"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tournament ID"})
 			return
 		}
 		var req ChangeStatusRequest
@@ -190,12 +195,13 @@ func UpdateTournamentStatusHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{"status": req.Status})
 	}
 }
+
 func DeleteTournamentHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		idStr := c.Param("id")
 		id, err := strconv.Atoi(idStr)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid tournament ID"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tournament ID"})
 			return
 		}
 		err = repository.DeleteTournament(pool, id)
@@ -209,10 +215,9 @@ func DeleteTournamentHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 		}
 		c.JSON(http.StatusOK, gin.H{"message": "Tournament deleted successfully"})
 	}
-
 }
 
-func RegisterTeamHandler(pool *pgxpool.Pool, chService *services.ChallongeService) gin.HandlerFunc {
+func RegisterTeamHandler(pool *pgxpool.Pool, chService services.ChallongeServiceInterface) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userId, exists := c.Get("userId")
 		if !exists {
@@ -247,23 +252,23 @@ func RegisterTeamHandler(pool *pgxpool.Pool, chService *services.ChallongeServic
 				c.JSON(http.StatusConflict, gin.H{"error": errMsg})
 			default:
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to register team for tournament" + errMsg})
-
 			}
 			return
 		}
 		err = chService.AddParticipant(challongeUrl, teamName)
 		if err != nil {
-			fmt.Printf("Failed to add participant to tournament challonge: %s\n", err)
-			_ = repository.RemoveTeamFromTournament(pool, tournamentId, req.TeamId)
-
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add participant to tournament: " + err.Error()})
+			slog.Error("Failed to add participant to Challonge", "error", err, "tournamentId", tournamentId, "team", teamName)
+			if removeErr := repository.RemoveTeamFromTournament(pool, tournamentId, req.TeamId); removeErr != nil {
+				slog.Error("Failed to rollback team registration", "error", removeErr)
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add participant to tournament"})
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"message": " Team for tournament successfully registered"})
 	}
 }
 
-func StartTournamentHandler(pool *pgxpool.Pool, chService *services.ChallongeService) gin.HandlerFunc {
+func StartTournamentHandler(pool *pgxpool.Pool, chService services.ChallongeServiceInterface, cacheService services.CacheServiceInterface) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		idStr := c.Param("id")
 		tournamentId, err := strconv.Atoi(idStr)
@@ -293,14 +298,21 @@ func StartTournamentHandler(pool *pgxpool.Pool, chService *services.ChallongeSer
 		}
 		err = chService.StartTournament(challongeUrl)
 		if err != nil {
-			fmt.Printf("Failed to start tournament(ChallongeError): %s\n", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start tournament on Challonge: " + err.Error()})
+			slog.Error("Failed to start tournament on Challonge", "tournamentId", tournamentId, "error", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start tournament on Challonge"})
 			return
 		}
+
 		err = repository.UpdateTournamentStatus(pool, tournamentId, "live")
 		if err != nil {
-			fmt.Printf("CRITICAL DB ERROR: Failed to update status to LIVE for tournament %d: %s\n", tournamentId, err)
+			slog.Error("CRITICAL: failed to update tournament status after start", "tournamentId", tournamentId, "error", err)
 		}
+
+		cacheKey := fmt.Sprintf("bracket:%s", challongeUrl)
+		if err := cacheService.Delete(context.Background(), cacheKey); err != nil {
+			slog.Warn("Failed to invalidate bracket cache after start", "key", cacheKey, "error", err)
+		}
+
 		c.JSON(http.StatusOK, gin.H{"message": "Tournament started successfully"})
 	}
 }
@@ -314,7 +326,6 @@ func FinishedTournamentHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 
-		
 		userId, exists := c.Get("userId")
 		if !exists {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
@@ -322,32 +333,82 @@ func FinishedTournamentHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 		}
 		requesterId := userId.(string)
 
-
 		creatorID, _, status, err := repository.GetTournamentForStart(pool, tournamentId)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Tournament not found"})
 			return
 		}
 
-
 		if creatorID != requesterId {
 			c.JSON(http.StatusForbidden, gin.H{"error": "Only the creator can finish the tournament"})
 			return
 		}
-
 
 		if status != "live" {
 			c.JSON(http.StatusConflict, gin.H{"error": "Tournament is not live (maybe it's upcoming or already finished?)"})
 			return
 		}
 
-
-		err = repository.FinishedTournament(pool, tournamentId, "finished")
+		err = repository.UpdateTournamentStatus(pool, tournamentId, "finished")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to finish tournament: " + err.Error()})
 			return
 		}
 
 		c.JSON(http.StatusOK, gin.H{"message": "Tournament finished successfully"})
+	}
+}
+
+func GetTournamentBracketHandler(pool *pgxpool.Pool, chService services.ChallongeServiceInterface, cacheService services.CacheServiceInterface) gin.HandlerFunc {
+	const BracketTTL = 2 * time.Minute
+
+	return func(c *gin.Context) {
+		idStr := c.Param("id")
+		tournamentId, err := strconv.Atoi(idStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tournament ID"})
+			return
+		}
+
+		_, challongeUrl, _, err := repository.GetTournamentForStart(pool, tournamentId)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Tournament not found"})
+			return
+		}
+
+		cacheKey := fmt.Sprintf("bracket:%s", challongeUrl)
+
+		ctx := context.Background()
+		cached, err := cacheService.Get(ctx, cacheKey)
+		if err == nil {
+			c.Header("X-Cache", "HIT")
+			slog.Debug("Bracket served from cache", "tournamentId", tournamentId, "key", cacheKey)
+
+			var bracket services.BracketResponse
+			if err := json.Unmarshal([]byte(cached), &bracket); err != nil {
+				slog.Error("Corrupted cache data, deleting", "key", cacheKey, "error", err)
+				_ = cacheService.Delete(ctx, cacheKey)
+			} else {
+				c.JSON(http.StatusOK, bracket)
+				return
+			}
+		} else if err != redis.Nil {
+			slog.Warn("Redis unavailable, skipping cache", "error", err)
+		}
+
+		slog.Debug("Cache miss, fetching from Challonge", "tournamentId", tournamentId)
+		bracket, err := chService.GetBracket(challongeUrl)
+		if err != nil {
+			slog.Error("Failed to fetch bracket from Challonge", "tournamentId", tournamentId, "error", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch bracket from Challonge"})
+			return
+		}
+
+		if err := cacheService.Set(ctx, cacheKey, bracket, BracketTTL); err != nil {
+			slog.Warn("Failed to cache bracket", "key", cacheKey, "error", err)
+		}
+
+		c.Header("X-Cache", "MISS")
+		c.JSON(http.StatusOK, bracket)
 	}
 }

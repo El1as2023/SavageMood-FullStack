@@ -1,4 +1,3 @@
-
 services:
   db:
     image: postgres:18-alpine # Використовуємо легку версію Alpine
@@ -13,5 +12,28 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data # Зберігаємо дані тут
 
+  # Redis — in-memory сховище для кешування.
+  # Зберігає сітку Challonge (bracket) між запитами.
+  # Alpine-версія важить ~10МБ замість ~100МБ у звичайній.
+  # --save 60 1 — зберігає стан на диск кожні 60 секунд якщо є ≥1 зміна.
+  # Це означає, що при перезапуску контейнера кеш відновиться з диску.
+  redis:
+    image: redis:7-alpine
+    container_name: savagemood_redis
+    restart: always
+    ports:
+      - "6379:6379" # стандартний порт Redis
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis_data:/data # зберігаємо дані кешу на диску
+    healthcheck:
+      # Перевіряємо, що Redis відповідає на PING кожні 30 секунд.
+      # Якщо 3 рази підряд не відповів — Docker перезапустить контейнер.
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
 volumes:
   postgres_data: # Це «флешка», на якій житимуть твої турніри та гравці
+  redis_data:    # «Флешка» для кешу Redis

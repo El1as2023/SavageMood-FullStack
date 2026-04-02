@@ -2,6 +2,8 @@ package main
 
 import (
 	"log"
+	"log/slog"
+	"os"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -14,38 +16,43 @@ import (
 )
 
 func main() {
-	var cfg *config.Config
-	var err error
-	cfg, err = config.Load()
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	})))
+
+	cfg, err := config.Load()
 	if err != nil {
-		log.Fatal("Error loading config: ", err)
+		log.Fatal("Config load error: ", err)
 	}
+	slog.Info("Config loaded")
+
 	var pool *pgxpool.Pool
 	pool, err = database.Connect(cfg.DatabaseURL)
 	if err != nil {
-		log.Fatal("Error connecting to database: ", err)
+		log.Fatal("Database connection error: ", err)
 	}
 	defer pool.Close()
+	slog.Info("PostgreSQL connected")
 
 	challongeService := services.NewChallongeService(cfg.ChallongeAPIKey, cfg.ChallongeUsername)
+
+	cacheService, err := services.NewRedisCacheService(cfg.RedisURL)
+	if err != nil {
+		log.Fatal("Redis connection error: ", err)
+	}
+	slog.Info("Redis connected")
 
 	var router *gin.Engine = gin.Default()
 
 	router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:3000"}, // Твій Next.js
+		AllowOrigins:     []string{"http://localhost:3000"},
 		AllowMethods:     []string{"GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		AllowCredentials: true,
 	}))
 
-	router.GET("/", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"message": "Welocme to SavageMOOD",
-		})
-	})
 	api := router.Group("/api")
 	{
-		// 1. Публічні маршрути (тепер вони будуть /api/auth/...)
 		api.POST("/auth/register", handlers.Register(pool, cfg))
 		api.POST("/auth/login", handlers.Login(pool, cfg))
 		api.GET("/verify-email", handlers.VerifyEmail(pool))
@@ -57,6 +64,7 @@ func main() {
 		protected.GET("/profile", handlers.GetMe(pool))
 		protected.GET("/tournaments", handlers.GetAllTournamentsHandler(pool))
 		protected.GET("/tournaments/:id", handlers.GetTournamentHandler(pool))
+		protected.GET("/tournaments/:id/bracket", handlers.GetTournamentBracketHandler(pool, challongeService, cacheService))
 		protected.POST("/team", handlers.CreateTeamHandler(pool))
 		protected.GET("/team/:id", handlers.GetTeamHandler(pool))
 		protected.POST("/team/join", handlers.JoinTeamHandler(pool))
@@ -64,16 +72,17 @@ func main() {
 		protected.DELETE("/team/delete/:id", handlers.DeleteTeamHandler(pool))
 		protected.POST("/tournaments/:id/register", handlers.RegisterTeamHandler(pool, challongeService))
 
-		//ADMIN
 		admin := protected.Group("/admin")
 		admin.Use(middleware.AdminMiddleware())
 		admin.POST("/create-tournament", handlers.CreateTournamentHandler(pool, challongeService))
 		admin.PATCH("/tournaments/:id", handlers.UpdateTournamentHandler(pool))
 		admin.PATCH("/tournaments/:id/status", handlers.UpdateTournamentStatusHandler(pool))
 		admin.DELETE("/tournaments/:id", handlers.DeleteTournamentHandler(pool))
-		admin.POST("/tournaments/:id/start", handlers.StartTournamentHandler(pool, challongeService))
-
+		admin.POST("/tournaments/:id/start", handlers.StartTournamentHandler(pool, challongeService, cacheService))
 	}
 
-	router.Run(":" + cfg.Port)
+	slog.Info("Server starting", "port", cfg.Port)
+	if err := router.Run(":" + cfg.Port); err != nil {
+		log.Fatal("Server error: ", err)
+	}
 }
